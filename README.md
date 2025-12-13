@@ -21,7 +21,7 @@ A Discord bot that automatically tracks and displays free games from multiple pl
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/CrazyGoGo42/GameFinder
    cd GameFinder
    ```
 
