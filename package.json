@@ -1,0 +1,22 @@
+{
+  "name": "game-finder-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for tracking free games from Steam, Epic Games, and other platforms",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": ["discord", "bot", "free games", "steam", "epic games"],
+  "author": "GameFinder",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
