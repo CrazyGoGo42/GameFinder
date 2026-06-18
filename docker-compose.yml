@@ -3,14 +3,17 @@ services:
     build: .
     container_name: gamefinder-discord-bot
     restart: always
+    # Run as the host user that owns the bind-mounted ./data and ./logs dirs,
+    # so the bot can persist channel bindings (otherwise EACCES on writes).
+    user: "1000:1000"
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - CLIENT_ID=${CLIENT_ID}
-      - NOTIFICATION_INTERVAL=${NOTIFICATION_INTERVAL}
     env_file:
       - .env
     volumes:
       - ./logs:/app/logs:rw
+      - ./data:/app/data:rw   # persist channel bindings on the host across rebuilds
     # No ports needed for Discord bot
     networks:
       - gamefinder-network

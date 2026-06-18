@@ -6,6 +6,9 @@ import path from 'path';
 // Store channel settings per server
 const channelSettings = new Map();
 
+// Persistent location for channel bindings
+const SETTINGS_PATH = path.join(process.cwd(), 'data', 'bound-channels.json');
+
 export const data = new SlashCommandBuilder()
     .setName('setchannel')
     .setDescription('Set the notification channel for new game deals')
@@ -18,12 +21,15 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
     try {
+        // Acknowledge immediately so we never hit Discord's 3-second interaction limit
+        await interaction.deferReply({ ephemeral: true });
+
         const channel = interaction.options.getChannel('channel') || interaction.channel;
         const guildId = interaction.guild?.id;
-        
+
         if (!guildId) {
             const errorEmbed = createErrorEmbed('This command can only be used in servers, not DMs.');
-            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            await interaction.editReply({ embeds: [errorEmbed] });
             return;
         }
 
@@ -36,7 +42,7 @@ export async function execute(interaction) {
                 `I don't have permission to send messages in ${channel}.\n` +
                 'Please ensure I have "Send Messages" and "Embed Links" permissions.'
             );
-            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            await interaction.editReply({ embeds: [errorEmbed] });
             return;
         }
 
@@ -51,29 +57,30 @@ export async function execute(interaction) {
 
         const successEmbed = createSuccessEmbed(
             `Notification channel set to ${channel}.\n` +
-            'A persistent game list will be maintained here, updated every 2 hours with the latest deals.'
+            'Posting the latest free games here now — the list updates in place every 2 hours.'
         );
-        
-        await interaction.reply({ embeds: [successEmbed] });
 
-        // Send a test message to confirm it works
-        setTimeout(async () => {
-            try {
-                const testEmbed = createSuccessEmbed(
-                    'Test notification\n' +
-                    'Channel configured for game notifications.\n' +
-                    'Free games will appear here automatically.'
-                );
-                await channel.send({ embeds: [testEmbed] });
-            } catch (error) {
-                console.error('Failed to send test notification:', error);
-            }
-        }, 2000);
+        await interaction.editReply({ embeds: [successEmbed] });
+
+        // Post the game list immediately so it appears right away (instead of waiting for the 2-hour cycle).
+        // Dynamic import avoids a circular static import with the updater module.
+        import('../utils/gameListUpdater.js')
+            .then(({ updateSingleGuildGameList }) => updateSingleGuildGameList(interaction.client, guildId))
+            .catch(error => console.error('Failed to post initial game list:', error));
 
     } catch (error) {
         console.error('Error setting notification channel:', error);
         const errorEmbed = createErrorEmbed('Failed to set notification channel. Please try again.');
-        await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        // Use editReply if we already deferred; otherwise reply. Guard against expired interactions.
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ embeds: [errorEmbed] });
+            } else {
+                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            }
+        } catch (replyError) {
+            console.error('Failed to send error reply:', replyError);
+        }
     }
 }
 
@@ -97,11 +104,6 @@ export function updatePinnedMessageId(guildId, messageId) {
     }
 }
 
-// Get all notification channels (for broadcasting new deals)
-export function getAllNotificationChannels() {
-    return Array.from(channelSettings.entries()).map(([guildId, settings]) => [guildId, settings.channelId]);
-}
-
 // Get all channel settings
 export function getAllChannelSettings() {
     return Array.from(channelSettings.entries());
@@ -110,9 +112,9 @@ export function getAllChannelSettings() {
 // Save channel settings to file
 function saveChannelSettings() {
     try {
-        const settingsPath = path.join(process.cwd(), 'channel-settings.json');
+        fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
         const settingsObject = Object.fromEntries(channelSettings);
-        fs.writeFileSync(settingsPath, JSON.stringify(settingsObject, null, 2));
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settingsObject, null, 2));
     } catch (error) {
         console.error('Error saving channel settings:', error);
     }
@@ -121,9 +123,8 @@ function saveChannelSettings() {
 // Load channel settings from file
 export function loadChannelSettings() {
     try {
-        const settingsPath = path.join(process.cwd(), 'channel-settings.json');
-        if (fs.existsSync(settingsPath)) {
-            const settingsObject = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (fs.existsSync(SETTINGS_PATH)) {
+            const settingsObject = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
             for (const [guildId, settings] of Object.entries(settingsObject)) {
                 // Handle both old format (just channelId) and new format (object)
                 if (typeof settings === 'string') {

@@ -125,7 +125,7 @@ export async function execute(interaction) {
         if (minWorth) {
             games = games.filter(game => {
                 if (!game.worth || game.worth === 'N/A') return false;
-                const worth = parseFloat(game.worth.replace(/[^\\d.]/g, ''));
+                const worth = parseFloat(game.worth.replace(/[^0-9.]/g, ''));
                 return worth >= minWorth;
             });
             platformName += ` (Min $${minWorth})`;
